@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Be My Valentine?</title>
+    <style>
+        /* --- CORE AESTHETICS --- */
+        @import url('https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&family=Montserrat:wght@300&display=swap');
+
+        body {
+            margin: 0;
+            background-color: #050505; /* Aesthetic Black */
+            color: white;
+            font-family: 'Montserrat', sans-serif;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        h1, h2 {
+            font-family: 'Dancing Script', cursive;
+            text-align: center;
+            pointer-events: none;
+            z-index: 100;
+            text-shadow: 0 0 10px rgba(255,255,255,0.3);
+            width: 100%;
+        }
+
+        .hidden { display: none !important; }
+
+        /* --- SCREEN 1: SELECTION MENU --- */
+        #selection-screen {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 30px;
+            z-index: 10;
+        }
+
+        .card-container {
+            display: flex;
+            gap: 15px;
+        }
+
+        .card {
+            width: 80px;
+            height: 110px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            backdrop-filter: blur(5px);
+        }
+
+        .card-icon { font-size: 2rem; margin-bottom: 5px; }
+        .card-name { font-size: 0.7rem; font-weight: bold; letter-spacing: 1px; }
+
+        /* --- SCREEN 2: 3D STAGE --- */
+        #game-screen {
+            width: 100%;
+            height: 100%;
+            perspective: 800px; /* Stronger perspective for depth */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            overflow: hidden;
+            touch-action: none; /* Prevents scroll while rotating */
+        }
+
+        #question-text {
+            margin-top: 10vh;
+            font-size: 2rem;
+            min-height: 50px;
+            transition: color 0.3s;
+        }
+
+        #instruction {
+            position: absolute;
+            bottom: 30px;
+            font-size: 0.8rem;
+            opacity: 0.6;
+            pointer-events: none;
+        }
+
+        /* --- THE 3D ENGINE --- */
+        .scene-container {
+            width: 100%;
+            height: 60vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .pivot {
+            position: relative;
+            transform-style: preserve-3d;
+            transform: rotateX(-20deg) rotateY(0deg); /* Initial tilt */
+            transition: transform 0.1s ease-out; /* Smooth drag */
+        }
+
+        /* The Stem */
+        .stem {
+            position: absolute;
+            top: 0;
+            left: -4px; /* Center 8px width */
+            width: 8px;
+            height: 400px;
+            background: linear-gradient(90deg, #1b4d3e, #2e8b57, #1b4d3e);
+            transform-origin: top center;
+            transform: translateY(10px); /* Move down slightly so it starts under the flower */
+            border-radius: 4px;
+        }
+        
+        /* Leaves on stem */
+        .leaf {
+            position: absolute;
+            width: 30px;
+            height: 60px;
+            background: #2e8b57;
+            border-radius: 0 50% 0 50%;
+            box-shadow: inset 2px 2px 5px rgba(0,0,0,0.3);
+        }
+        .leaf.left { top: 60px; left: -25px; transform: rotate(-45deg); }
+        .leaf.right { top: 120px; left: 5px; transform: rotate(45deg) scaleX(-1); }
+
+        /* The Flower Center (Pollen/Disk) */
+        .flower-center {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            background: radial-gradient(circle, #3e2723 20%, #ffc107 100%);
+            border-radius: 50%;
+            transform: translate(-50%, -50%) rotateX(90deg); /* Flat disk facing up */
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+            backface-visibility: visible;
+        }
+
+        /* Generic Petal Style */
+        .petal {
+            position: absolute;
+            left: 0;
+            top: 0;
+            /* Transform origin is CRITICAL for opening the flower */
+            transform-origin: center bottom; 
+            cursor: pointer;
+            transition: background 0.3s;
+            backface-visibility: visible;
+            box-shadow: inset 0 -10px 20px rgba(0,0,0,0.2); /* Depth at base */
+        }
+
+        /* --- Flower Specifics --- */
+        /* ROSE: Round, curled */
+        .shape-rose { 
+            border-radius: 50% 50% 10% 10%; 
+            background: radial-gradient(circle at 50% 0%, #ff4d4d, #990000);
+        }
+        /* DAHLIA: Pointy, geometric */
+        .shape-dahlia { 
+            border-radius: 0 50% 0 50%; 
+            background: linear-gradient(45deg, #9b5de5, #5a189a);
+        } 
+        /* TULIP: Long cup */
+        .shape-tulip { 
+            border-radius: 5% 5% 40% 40%; 
+            background: linear-gradient(to top, #ff9f1c, #ffbf69);
+        }
+
+        /* Animation */
+        .falling {
+            animation: fallOff 2s forwards ease-in;
+            pointer-events: none;
+        }
+
+        @keyframes fallOff {
+            0% { transform: inherit; opacity: 1; }
+            100% { 
+                transform: translate3d(var(--tx), 500px, var(--tz)) rotate3d(1,1,1, 360deg); 
+                opacity: 0; 
+            }
+        }
+
+        /* Final Message */
+        #final-message {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            z-index: 200;
+            width: 90%;
+            background: rgba(0,0,0,0.95);
+            padding: 20px;
+            border-radius: 20px;
+            border: 2px solid #ff4d4d;
+            box-shadow: 0 0 30px rgba(255, 77, 77, 0.4);
+        }
+        #final-message h1 { font-size: 3.5rem; color: #ff4d4d; margin: 0; }
+        #final-message p { font-size: 1.2rem; color: white; margin-top: 10px; }
+
+    </style>
+</head>
+<body>
+
+    <div id="selection-screen">
+        <h1>Pick a flower for<br>your Valentine</h1>
+        <div class="card-container">
+            <div class="card" onclick="initGame('rose')"><div class="card-icon">🌹</div><div class="card-name">Rose</div></div>
+            <div class="card" onclick="initGame('dahlia')"><div class="card-icon">🏵️</div><div class="card-name">Dahlia</div></div>
+            <div class="card" onclick="initGame('tulip')"><div class="card-icon">🌷</div><div class="card-name">Tulip</div></div>
+        </div>
+    </div>
+
+    <div id="game-screen" class="hidden">
+        <h2 id="question-text">Can you be my Valentine?</h2>
+        
+        <div class="scene-container">
+            <div class="pivot" id="flower-pivot">
+                <div class="stem">
+                    <div class="leaf left"></div>
+                    <div class="leaf right"></div>
+                </div>
+                <div class="flower-center" id="flower-center"></div>
+                </div>
+        </div>
+
+        <div id="instruction">Rotate: Swipe ↕️ and ↔️<br>Click petal to pluck</div>
+    </div>
+
+    <script>
+        // --- GAME STATE ---
+        const responses = ["Yes! 💖", "No... 💔", "Please? 🥺", "Forever! 😍", "Maybe? 🤔", "YES! 🔥"];
+        let totalPetals = 0;
+        let removedPetals = 0;
+        
+        // --- 3D ROTATION LOGIC ---
+        let isDragging = false;
+        let startX, startY;
+        let rotX = -20; // Start tilted slightly up
+        let rotY = 0;
+        const pivot = document.getElementById('flower-pivot');
+        const gameScreen = document.getElementById('game-screen');
+
+        gameScreen.addEventListener('mousedown', startDrag);
+        gameScreen.addEventListener('touchstart', startDrag, {passive: false});
+        
+        window.addEventListener('mousemove', onDrag);
+        window.addEventListener('touchmove', onDrag, {passive: false});
+        
+        window.addEventListener('mouseup', stopDrag);
+        window.addEventListener('touchend', stopDrag);
+
+        function startDrag(e) {
+            // Don't drag if clicking a petal (unless we want to allow drag on petals too, but better to separate)
+            if(e.target.classList.contains('petal')) return;
+            
+            isDragging = true;
+            startX = e.type.includes('mouse') ? e.clientX : e.touches[0].clientX;
+            startY = e.type.includes('mouse') ? e.clientY : e.touches[0].clientY;
+        }
+
+        function onDrag(e) {
+            if (!isDragging) return;
+            e.preventDefault(); // Stop scrolling on mobile
+
+            const x = e.type.includes('mouse') ? e.clientX : e.touches[0].clientX;
+            const y = e.type.includes('mouse') ? e.clientY : e.touches[0].clientY;
+
+            const deltaX = x - startX;
+            const deltaY = y - startY;
+
+            rotY += deltaX * 0.5;
+            rotX -= deltaY * 0.5; // Invert Up/Down for natural feel
+
+            // Clamp Up/Down so it doesn't flip weirdly (Limit to -60 to 60 degrees)
+            rotX = Math.max(-80, Math.min(80, rotX));
+
+            updateRotation();
+
+            startX = x;
+            startY = y;
+        }
+
+        function stopDrag() { isDragging = false; }
+
+        function updateRotation() {
+            pivot.style.transform = `rotateX(${rotX}deg) rotateY(${rotY}deg)`;
+        }
+
+
+        // --- FLOWER CONSTRUCTION ---
+        function initGame(type) {
+            document.getElementById('selection-screen').classList.add('hidden');
+            document.getElementById('game-screen').classList.remove('hidden');
+            buildFlower(type);
+        }
+
+        function buildFlower(type) {
+            const pivot = document.getElementById('flower-pivot');
+            const center = document.getElementById('flower-center');
+
+            let layers = [];
+            
+            if (type === 'rose') {
+                center.style.background = '#880000'; // Dark center for rose
+                center.style.width = '20px'; center.style.height = '20px';
+                // Rose Recipe: 3 Layers
+                layers = [
+                    { count: 4, width: 30, height: 50, tilt: 15, y: -20, color: '#990000' }, // Inner Bud
+                    { count: 6, width: 40, height: 60, tilt: 35, y: -22, color: '#cc0000' }, // Middle
+                    { count: 8, width: 50, height: 70, tilt: 60, y: -25, color: '#ff4d4d' }  // Outer
+                ];
+            } else if (type === 'dahlia') {
+                center.style.background = '#ffc107'; // Yellow center
+                // Dahlia Recipe: Many overlapping layers
+                layers = [
+                    { count: 8, width: 20, height: 60, tilt: 20, y: -10, color: '#7209b7' },
+                    { count: 12, width: 25, height: 70, tilt: 45, y: -12, color: '#b5179e' },
+                    { count: 12, width: 30, height: 80, tilt: 70, y: -15, color: '#f72585' }
+                ];
+            } else { // Tulip
+                center.style.background = '#000'; // Black stamens
+                // Tulip Recipe: Simple Cup
+                layers = [
+                    { count: 3, width: 50, height: 90, tilt: 20, y: -20, color: '#ff9f1c' }, // Inner cup
+                    { count: 3, width: 55, height: 90, tilt: 30, y: -20, color: '#ffbf69' }  // Outer cup
+                ];
+            }
+
+            // Generate Layers
+            layers.forEach(layer => {
+                const angleStep = 360 / layer.count;
+                for (let i = 0; i < layer.count; i++) {
+                    const petal = document.createElement('div');
+                    petal.classList.add('petal');
+                    
+                    // Shape
+                    if(type === 'rose') petal.classList.add('shape-rose');
+                    else if(type === 'dahlia') petal.classList.add('shape-dahlia');
+                    else petal.classList.add('shape-tulip');
+
+                    // Sizing
+                    petal.style.width = layer.width + 'px';
+                    petal.style.height = layer.height + 'px';
+                    petal.style.backgroundColor = layer.color;
+                    
+                    // Positioning (Math magic)
+                    // We need to center the petal horizontally (-width/2)
+                    // Then move it up so the bottom is at (0,0,0)
+                    petal.style.marginLeft = -(layer.width / 2) + 'px';
+                    petal.style.marginTop = -layer.height + 'px';
+
+                    // 3D Transform
+                    // 1. Rotate around the Y axis (circle)
+                    // 2. Translate OUT slightly (radius)
+                    // 3. Rotate X (tilt open)
+                    const rotY = (i * angleStep) + (Math.random() * 10); // add slight random offset for realism
+                    const radius = layer.width * 0.3; // Tightness
+                    
+                    petal.style.transform = `rotateY(${rotY}deg) translateZ(${radius}px) rotateX(-${layer.tilt}deg) translateY(${layer.y}px)`;
+
+                    // Click Event
+                    petal.onclick = (e) => {
+                        e.stopPropagation(); // Don't trigger drag
+                        pluckPetal(petal);
+                    };
+
+                    pivot.appendChild(petal);
+                    totalPetals++;
+                }
+            });
+        }
+
+        // --- DELULU LOGIC ---
+        function pluckPetal(petal) {
+            if(petal.classList.contains('falling')) return;
+
+            // Animate
+            const tx = (Math.random() - 0.5) * 400 + 'px';
+            const tz = (Math.random() - 0.5) * 400 + 'px';
+            petal.style.setProperty('--tx', tx);
+            petal.style.setProperty('--tz', tz);
+            petal.classList.add('falling');
+
+            // Logic
+            removedPetals++;
+            const remaining = totalPetals - removedPetals;
+            const qText = document.getElementById('question-text');
+
+            if (remaining === 0) {
+                // SUCCESS
+                qText.style.opacity = 0;
+                showSuccess();
+            } else {
+                // Suspense Logic
+                if (remaining <= 3) {
+                     qText.innerText = "Almost there... ❤️";
+                     qText.style.color = "#fff";
+                } else {
+                    const isYes = removedPetals % 2 !== 0;
+                    qText.innerText = isYes ? "Yes! 😍" : "No... 🥺";
+                    qText.style.color = isYes ? "#ff4d4d" : "#888";
+                }
+            }
+        }
+
+        function showSuccess() {
+            const div = document.createElement('div');
+            div.id = 'final-message';
+            // REPLACE NAME HERE
+            div.innerHTML = "<h1>YES!</h1><p>You are my Valentine! 💖</p>";
+            document.body.appendChild(div);
+            
+            // Particles
+            for(let i=0; i<50; i++) {
+                const p = document.createElement('div');
+                p.style.position = 'absolute';
+                p.style.background = '#ff4d4d';
+                p.style.width = '10px'; p.style.height = '10px';
+                p.style.top = '-10px';
+                p.style.left = Math.random()*100 + 'vw';
+                p.style.animation = `fallOff ${2+Math.random()}s linear infinite`;
+                document.body.appendChild(p);
+            }
+        }
+
+    </script>
+</body>
+</html>
